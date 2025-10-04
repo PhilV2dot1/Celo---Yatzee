@@ -35,3 +35,26 @@ Consultation :
 
 obtenirInfosPartie() - État actuel de la partie
 obtenirScoreJoueur() - Scores détaillés d'un joueur
+
+Nouvelles fonctionnalités :
+Création de partie flexible :
+
+creerPartie(nom, modeSolo) - Créer une partie solo (true) ou multijoueur (false)
+Les parties solo démarrent automatiquement après création
+Les parties multijoueur nécessitent toujours demarrerPartie()
+
+Modes de jeu :
+
+Mode Solo (1 joueur) : Jouez seul pour battre votre meilleur score
+Mode Multijoueur (1-4 joueurs) : Affrontez jusqu'à 3 autres joueurs
+
+Fonctions ajustées :
+
+rejoindrePartie() vérifie maintenant que ce n'est pas une partie solo
+demarrerPartie() accepte maintenant 1 joueur minimum
+quitterPartie() interdit de quitter une partie solo
+Les événements incluent l'information modeSolo
+
+Bonus - Nouvelle fonction utile :
+
+calculerScorePotentiel() - Permet de voir combien de points on obtiendrait dans chaque catégorie avant de faire son choix !
