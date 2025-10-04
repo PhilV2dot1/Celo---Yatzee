@@ -1,0 +1,385 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract JeuYahtzee {
+    
+    struct Joueur {
+        address adresse;
+        string nom;
+        uint256[13] scores; // 13 catégories de score
+        bool[13] categoriesUtilisees;
+        uint256 scoreTotal;
+    }
+    
+    struct Partie {
+        address[] joueurs;
+        mapping(address => Joueur) donneesJoueurs;
+        uint256 joueurActuel;
+        uint256[5] des;
+        bool[5] desGardes;
+        uint256 nombreLancers;
+        bool partieCommencee;
+        bool partieTerminee;
+        address gagnant;
+        bool modeSolo;
+        bool existe;
+    }
+    
+    mapping(uint256 => Partie) public parties;
+    uint256 public nombreParties;
+    mapping(address => uint256) public partieActive;
+    
+    // Événements
+    event PartieCreee(uint256 indexed idPartie, address createur, bool modeSolo);
+    event JoueurRejoint(uint256 indexed idPartie, address joueur, string nom);
+    event PartieCommencee(uint256 indexed idPartie, uint256 nombreJoueurs);
+    event DesLances(uint256 indexed idPartie, address joueur, uint256[5] des, uint256 numeroLancer);
+    event ScoreEnregistre(uint256 indexed idPartie, address joueur, uint256 categorie, uint256 score);
+    event PartieTerminee(uint256 indexed idPartie, address gagnant, uint256 scoreGagnant);
+    
+    // Créer une nouvelle partie (solo ou multijoueur)
+    function creerPartie(string memory _nomJoueur, bool _modeSolo) public returns (uint256) {
+        require(partieActive[msg.sender] == 0, "Vous etes deja dans une partie");
+        require(bytes(_nomJoueur).length > 0, "Le nom ne peut pas etre vide");
+        
+        nombreParties++;
+        uint256 idPartie = nombreParties;
+        
+        Partie storage partie = parties[idPartie];
+        partie.existe = true;
+        partie.modeSolo = _modeSolo;
+        partie.joueurs.push(msg.sender);
+        
+        Joueur storage joueur = partie.donneesJoueurs[msg.sender];
+        joueur.adresse = msg.sender;
+        joueur.nom = _nomJoueur;
+        
+        partieActive[msg.sender] = idPartie;
+        
+        emit PartieCreee(idPartie, msg.sender, _modeSolo);
+        emit JoueurRejoint(idPartie, msg.sender, _nomJoueur);
+        
+        // Si c'est une partie solo, la démarrer automatiquement
+        if (_modeSolo) {
+            partie.partieCommencee = true;
+            partie.joueurActuel = 0;
+            partie.nombreLancers = 0;
+            emit PartieCommencee(idPartie, 1);
+        }
+        
+        return idPartie;
+    }
+    
+    // Rejoindre une partie multijoueur
+    function rejoindrePartie(uint256 _idPartie, string memory _nomJoueur) public {
+        require(parties[_idPartie].existe, "Cette partie n'existe pas");
+        require(!parties[_idPartie].modeSolo, "Cette partie est en mode solo");
+        require(partieActive[msg.sender] == 0, "Vous etes deja dans une partie");
+        require(!parties[_idPartie].partieCommencee, "La partie a deja commence");
+        require(parties[_idPartie].joueurs.length < 4, "La partie est complete");
+        require(bytes(_nomJoueur).length > 0, "Le nom ne peut pas etre vide");
+        
+        Partie storage partie = parties[_idPartie];
+        partie.joueurs.push(msg.sender);
+        
+        Joueur storage joueur = partie.donneesJoueurs[msg.sender];
+        joueur.adresse = msg.sender;
+        joueur.nom = _nomJoueur;
+        
+        partieActive[msg.sender] = _idPartie;
+        
+        emit JoueurRejoint(_idPartie, msg.sender, _nomJoueur);
+    }
+    
+    // Démarrer la partie multijoueur
+    function demarrerPartie(uint256 _idPartie) public {
+        Partie storage partie = parties[_idPartie];
+        require(partie.existe, "Cette partie n'existe pas");
+        require(!partie.modeSolo, "Les parties solo demarrent automatiquement");
+        require(partie.joueurs[0] == msg.sender, "Seul le createur peut demarrer");
+        require(!partie.partieCommencee, "La partie a deja commence");
+        require(partie.joueurs.length >= 1, "Il faut au moins 1 joueur");
+        
+        partie.partieCommencee = true;
+        partie.joueurActuel = 0;
+        partie.nombreLancers = 0;
+        
+        emit PartieCommencee(_idPartie, partie.joueurs.length);
+    }
+    
+    // Lancer les dés
+    function lancerDes(uint256 _idPartie, bool[5] memory _desAGarder) public {
+        Partie storage partie = parties[_idPartie];
+        require(partie.existe, "Cette partie n'existe pas");
+        require(partie.partieCommencee, "La partie n'a pas commence");
+        require(!partie.partieTerminee, "La partie est terminee");
+        require(partie.joueurs[partie.joueurActuel] == msg.sender, "Ce n'est pas votre tour");
+        require(partie.nombreLancers < 3, "Vous avez deja lance 3 fois");
+        
+        partie.nombreLancers++;
+        
+        // Lancer les dés non gardés
+        for (uint256 i = 0; i < 5; i++) {
+            if (!_desAGarder[i] || partie.nombreLancers == 1) {
+                partie.des[i] = genererNombreAleatoire(i, partie.nombreLancers) % 6 + 1;
+                partie.desGardes[i] = false;
+            } else {
+                partie.desGardes[i] = true;
+            }
+        }
+        
+        emit DesLances(_idPartie, msg.sender, partie.des, partie.nombreLancers);
+    }
+    
+    // Enregistrer un score dans une catégorie
+    function enregistrerScore(uint256 _idPartie, uint256 _categorie) public {
+        Partie storage partie = parties[_idPartie];
+        require(partie.existe, "Cette partie n'existe pas");
+        require(partie.partieCommencee, "La partie n'a pas commence");
+        require(!partie.partieTerminee, "La partie est terminee");
+        require(partie.joueurs[partie.joueurActuel] == msg.sender, "Ce n'est pas votre tour");
+        require(partie.nombreLancers > 0, "Vous devez lancer les des");
+        require(_categorie < 13, "Categorie invalide");
+        require(!partie.donneesJoueurs[msg.sender].categoriesUtilisees[_categorie], 
+                "Categorie deja utilisee");
+        
+        uint256 score = calculerScore(partie.des, _categorie);
+        
+        Joueur storage joueur = partie.donneesJoueurs[msg.sender];
+        joueur.scores[_categorie] = score;
+        joueur.categoriesUtilisees[_categorie] = true;
+        joueur.scoreTotal += score;
+        
+        // Bonus pour la section supérieure (si total >= 63)
+        if (_categorie <= 5) {
+            uint256 totalSuperieur = 0;
+            bool toutesUtilisees = true;
+            for (uint256 i = 0; i <= 5; i++) {
+                totalSuperieur += joueur.scores[i];
+                if (!joueur.categoriesUtilisees[i]) {
+                    toutesUtilisees = false;
+                }
+            }
+            if (toutesUtilisees && totalSuperieur >= 63) {
+                joueur.scoreTotal += 35; // Bonus
+            }
+        }
+        
+        emit ScoreEnregistre(_idPartie, msg.sender, _categorie, score);
+        
+        // Passer au joueur suivant
+        partie.joueurActuel = (partie.joueurActuel + 1) % partie.joueurs.length;
+        partie.nombreLancers = 0;
+        
+        // Réinitialiser les dés gardés
+        for (uint256 i = 0; i < 5; i++) {
+            partie.desGardes[i] = false;
+        }
+        
+        // Vérifier si la partie est terminée
+        verifierFinPartie(_idPartie);
+    }
+    
+    // Calculer le score pour une catégorie donnée
+    function calculerScore(uint256[5] memory des, uint256 categorie) private pure returns (uint256) {
+        uint256[7] memory compteur; // Compte les occurrences de chaque valeur (1-6)
+        
+        for (uint256 i = 0; i < 5; i++) {
+            compteur[des[i]]++;
+        }
+        
+        // Catégories 0-5: Uns, Deux, Trois, Quatre, Cinq, Six
+        if (categorie <= 5) {
+            return compteur[categorie + 1] * (categorie + 1);
+        }
+        
+        // Catégorie 6: Brelan (3 identiques)
+        if (categorie == 6) {
+            for (uint256 i = 1; i <= 6; i++) {
+                if (compteur[i] >= 3) {
+                    return sommerDes(des);
+                }
+            }
+            return 0;
+        }
+        
+        // Catégorie 7: Carré (4 identiques)
+        if (categorie == 7) {
+            for (uint256 i = 1; i <= 6; i++) {
+                if (compteur[i] >= 4) {
+                    return sommerDes(des);
+                }
+            }
+            return 0;
+        }
+        
+        // Catégorie 8: Full (3 + 2)
+        if (categorie == 8) {
+            bool aTrois = false;
+            bool aDeux = false;
+            for (uint256 i = 1; i <= 6; i++) {
+                if (compteur[i] == 3) aTrois = true;
+                if (compteur[i] == 2) aDeux = true;
+            }
+            return (aTrois && aDeux) ? 25 : 0;
+        }
+        
+        // Catégorie 9: Petite suite (4 consécutifs)
+        if (categorie == 9) {
+            if ((compteur[1] > 0 && compteur[2] > 0 && compteur[3] > 0 && compteur[4] > 0) ||
+                (compteur[2] > 0 && compteur[3] > 0 && compteur[4] > 0 && compteur[5] > 0) ||
+                (compteur[3] > 0 && compteur[4] > 0 && compteur[5] > 0 && compteur[6] > 0)) {
+                return 30;
+            }
+            return 0;
+        }
+        
+        // Catégorie 10: Grande suite (5 consécutifs)
+        if (categorie == 10) {
+            if ((compteur[1] > 0 && compteur[2] > 0 && compteur[3] > 0 && compteur[4] > 0 && compteur[5] > 0) ||
+                (compteur[2] > 0 && compteur[3] > 0 && compteur[4] > 0 && compteur[5] > 0 && compteur[6] > 0)) {
+                return 40;
+            }
+            return 0;
+        }
+        
+        // Catégorie 11: Yahtzee (5 identiques)
+        if (categorie == 11) {
+            for (uint256 i = 1; i <= 6; i++) {
+                if (compteur[i] == 5) {
+                    return 50;
+                }
+            }
+            return 0;
+        }
+        
+        // Catégorie 12: Chance (somme de tous les dés)
+        if (categorie == 12) {
+            return sommerDes(des);
+        }
+        
+        return 0;
+    }
+    
+    // Sommer tous les dés
+    function sommerDes(uint256[5] memory des) private pure returns (uint256) {
+        uint256 somme = 0;
+        for (uint256 i = 0; i < 5; i++) {
+            somme += des[i];
+        }
+        return somme;
+    }
+    
+    // Vérifier si la partie est terminée
+    function verifierFinPartie(uint256 _idPartie) private {
+        Partie storage partie = parties[_idPartie];
+        
+        // Vérifier si tous les joueurs ont rempli toutes les catégories
+        for (uint256 i = 0; i < partie.joueurs.length; i++) {
+            Joueur storage joueur = partie.donneesJoueurs[partie.joueurs[i]];
+            for (uint256 j = 0; j < 13; j++) {
+                if (!joueur.categoriesUtilisees[j]) {
+                    return; // Partie pas encore terminée
+                }
+            }
+        }
+        
+        // Trouver le gagnant
+        uint256 scoreMax = 0;
+        address gagnant;
+        
+        for (uint256 i = 0; i < partie.joueurs.length; i++) {
+            Joueur storage joueur = partie.donneesJoueurs[partie.joueurs[i]];
+            if (joueur.scoreTotal > scoreMax) {
+                scoreMax = joueur.scoreTotal;
+                gagnant = partie.joueurs[i];
+            }
+        }
+        
+        partie.partieTerminee = true;
+        partie.gagnant = gagnant;
+        
+        // Libérer les joueurs
+        for (uint256 i = 0; i < partie.joueurs.length; i++) {
+            partieActive[partie.joueurs[i]] = 0;
+        }
+        
+        emit PartieTerminee(_idPartie, gagnant, scoreMax);
+    }
+    
+    // Générer un nombre pseudo-aléatoire
+    function genererNombreAleatoire(uint256 seed1, uint256 seed2) private view returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(
+            block.timestamp,
+            block.prevrandao,
+            msg.sender,
+            seed1,
+            seed2
+        )));
+    }
+    
+    // Obtenir les informations de la partie
+    function obtenirInfosPartie(uint256 _idPartie) public view returns (
+        address[] memory joueurs,
+        uint256 joueurActuel,
+        uint256[5] memory des,
+        uint256 nombreLancers,
+        bool partieCommencee,
+        bool partieTerminee,
+        address gagnant,
+        bool modeSolo
+    ) {
+        Partie storage partie = parties[_idPartie];
+        return (
+            partie.joueurs,
+            partie.joueurActuel,
+            partie.des,
+            partie.nombreLancers,
+            partie.partieCommencee,
+            partie.partieTerminee,
+            partie.gagnant,
+            partie.modeSolo
+        );
+    }
+    
+    // Obtenir le score d'un joueur
+    function obtenirScoreJoueur(uint256 _idPartie, address _joueur) public view returns (
+        string memory nom,
+        uint256[13] memory scores,
+        bool[13] memory categoriesUtilisees,
+        uint256 scoreTotal
+    ) {
+        Joueur storage joueur = parties[_idPartie].donneesJoueurs[_joueur];
+        return (joueur.nom, joueur.scores, joueur.categoriesUtilisees, joueur.scoreTotal);
+    }
+    
+    // Quitter une partie (avant qu'elle commence)
+    function quitterPartie(uint256 _idPartie) public {
+        Partie storage partie = parties[_idPartie];
+        require(partie.existe, "Cette partie n'existe pas");
+        require(!partie.modeSolo, "Vous ne pouvez pas quitter une partie solo");
+        require(!partie.partieCommencee, "La partie a deja commence");
+        require(partieActive[msg.sender] == _idPartie, "Vous n'etes pas dans cette partie");
+        
+        // Retirer le joueur de la liste
+        for (uint256 i = 0; i < partie.joueurs.length; i++) {
+            if (partie.joueurs[i] == msg.sender) {
+                partie.joueurs[i] = partie.joueurs[partie.joueurs.length - 1];
+                partie.joueurs.pop();
+                break;
+            }
+        }
+        
+        partieActive[msg.sender] = 0;
+    }
+    
+    // Calculer le score potentiel pour une catégorie (avant de l'enregistrer)
+    function calculerScorePotentiel(uint256 _idPartie, uint256 _categorie) public view returns (uint256) {
+        Partie storage partie = parties[_idPartie];
+        require(partie.existe, "Cette partie n'existe pas");
+        require(partie.nombreLancers > 0, "Vous devez d'abord lancer les des");
+        require(_categorie < 13, "Categorie invalide");
+        
+        return calculerScore(partie.des, _categorie);
+    }
+}
