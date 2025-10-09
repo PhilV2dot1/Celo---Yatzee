@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yahtzee On-Chain</title>
+    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #FBCC5C 0%, #35D07F 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            font-size: 3em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #FBCC5C 0%, #35D07F 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 15px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #FBCC5C;
+        }
+
+        .dice-container {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+
+        .dice {
+            width: 80px;
+            height: 80px;
+            background: white;
+            border: 3px solid #FBCC5C;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            font-weight: bold;
+            color: #FBCC5C;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .dice:hover {
+            transform: scale(1.1);
+        }
+
+        .dice.kept {
+            background: linear-gradient(135deg, #FBCC5C 0%, #35D07F 100%);
+            color: white;
+            border-color: #35D07F;
+        }
+
+        .dice.kept::after {
+            content: '🔒';
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            font-size: 20px;
+        }
+
+        .score-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .score-table th,
+        .score-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .score-table th {
+            background: linear-gradient(135deg, #FBCC5C 0%, #35D07F 100%);
+            color: white;
+            font-weight: 600;
+        }
+
+        .score-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .score-table .used {
+            opacity: 0.5;
+            background: #e9ecef;
+        }
+
+        .score-table .clickable {
+            cursor: pointer;
+        }
+
+        .score-table .clickable:hover {
+            background: #e3f2fd;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .status.info {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .status.success {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .status.warning {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .status.error {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-box {
+            background: linear-gradient(135deg, #FBCC5C 0%, #35D07F 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-box h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            opacity: 0.9;
+        }
+
+        .stat-box p {
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .roll-count {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #FBCC5C;
+            margin: 20px 0;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+            
+            .dice {
+                width: 60px;
+                height: 60px;
+                font-size: 28px;
+            }
+        }
+
+        .players-list {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        .player-badge {
+            background: #FBCC5C;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        .player-badge.current {
+            background: #f5576c;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎲 Yahtzee On-Chain 🎲</h1>
+
+        <!-- Section de connexion -->
+        <div id="connectSection" class="card">
+            <h2>Connexion au Wallet</h2>
+            <button class="btn" onclick="connectWallet()">Connecter MetaMask</button>
+            <div id="walletInfo" class="status info hidden"></div>
+        </div>
+
+        <!-- Section de configuration du contrat -->
+        <div id="setupSection" class="card hidden">
+            <h2>Configuration du Contrat</h2>
+            <input type="text" id="contractAddress" placeholder="Adresse du contrat Yahtzee">
+            <button class="btn" onclick="setupContract()">Configurer</button>
+        </div>
+
+        <!-- Section de création/rejoindre une partie -->
+        <div id="gameSetupSection" class="card hidden">
+            <h2>Nouvelle Partie</h2>
+            <div class="grid-2">
+                <div>
+                    <h3>Créer une partie</h3>
+                    <input type="text" id="playerName" placeholder="Votre nom">
+                    <label>
+                        <input type="checkbox" id="soloMode"> Mode Solo
+                    </label>
+                    <button class="btn" onclick="createGame()">Créer</button>
+                </div>
+                <div>
+                    <h3>Rejoindre une partie</h3>
+                    <input type="number" id="joinGameId" placeholder="ID de la partie">
+                    <input type="text" id="joinPlayerName" placeholder="Votre nom">
+                    <button class="btn btn-secondary" onclick="joinGame()">Rejoindre</button>
+                </div>
+            </div>
+            <button class="btn btn-success" onclick="startGame()" style="margin-top: 15px;">Démarrer la partie (créateur uniquement)</button>
+        </div>
+
+        <!-- Section de jeu -->
+        <div id="gameSection" class="card hidden">
+            <div id="gameStatus" class="status info"></div>
+            
+            <div class="stats">
+                <div class="stat-box">
+                    <h3>ID Partie</h3>
+                    <p id="currentGameId">-</p>
+                </div>
+                <div class="stat-box">
+                    <h3>Joueur Actuel</h3>
+                    <p id="currentPlayer">-</p>
+                </div>
+                <div class="stat-box">
+                    <h3>Lancers</h3>
+                    <p id="rollCount">0/3</p>
+                </div>
+                <div class="stat-box">
+                    <h3>Score Total</h3>
+                    <p id="totalScore">0</p>
+                </div>
+            </div>
+
+            <div id="playersInfo" class="players-list"></div>
+
+            <h3 style="margin-top: 30px; text-align: center;">Vos Dés</h3>
+            <div class="dice-container" id="diceContainer"></div>
+            
+            <div style="text-align: center; margin: 20px 0;">
+                <button class="btn" onclick="rollDice()" id="rollButton">🎲 Lancer les Dés</button>
+                <button class="btn btn-secondary" onclick="refreshGameInfo()">🔄 Actualiser</button>
+            </div>
+
+            <h3 style="margin-top: 30px;">Feuille de Score</h3>
+            <table class="score-table">
+                <thead>
+                    <tr>
+                        <th>Catégorie</th>
+                        <th>Score Potentiel</th>
+                        <th>Score Actuel</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="scoreTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Section de résultats -->
+        <div id="resultsSection" class="card hidden">
+            <h2>🏆 Partie Terminée !</h2>
+            <div id="winnerInfo" class="status success"></div>
+            <button class="btn" onclick="resetGame()">Nouvelle Partie</button>
+        </div>
+    </div>
+
+    <script>
+        let provider, signer, contract, userAddress;
+        let currentGameId = 0;
+        let keptDice = [false, false, false, false, false];
+        
+        const CONTRACT_ABI = [
+            "function creerPartie(string memory _nomJoueur, bool _modeSolo) public returns (uint256)",
+            "function rejoindrePartie(uint256 _idPartie, string memory _nomJoueur) public",
+            "function demarrerPartie(uint256 _idPartie) public",
+            "function lancerDes(uint256 _idPartie, bool[5] memory _desAGarder) public",
+            "function enregistrerScore(uint256 _idPartie, uint256 _categorie) public",
+            "function obtenirInfosPartie(uint256 _idPartie) public view returns (address[] memory, uint256, uint256[5] memory, uint256, bool, bool, address, bool)",
+            "function obtenirScoreJoueur(uint256 _idPartie, address _joueur) public view returns (string memory, uint256[13] memory, bool[13] memory, uint256)",
+            "function calculerScorePotentiel(uint256 _idPartie, uint256 _categorie) public view returns (uint256)",
+            "function partieActive(address) public view returns (uint256)",
+            "event PartieCreee(uint256 indexed idPartie, address createur, bool modeSolo)",
+            "event DesLances(uint256 indexed idPartie, address joueur, uint256[5] des, uint256 numeroLancer)",
+            "event ScoreEnregistre(uint256 indexed idPartie, address joueur, uint256 categorie, uint256 score)",
+            "event PartieTerminee(uint256 indexed idPartie, address gagnant, uint256 scoreGagnant)"
+        ];
+
+        const CATEGORIES = [
+            "Uns (1)", "Deux (2)", "Trois (3)", "Quatre (4)", "Cinq (5)", "Six (6)",
+            "Brelan", "Carré", "Full", "Petite Suite", "Grande Suite", "Yahtzee", "Chance"
+        ];
+
+        async function connectWallet() {
+            if (typeof window.ethereum === 'undefined') {
+                alert('Veuillez installer MetaMask !');
+                return;
+            }
+
+            try {
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                await provider.send("eth_requestAccounts", []);
+                signer = provider.getSigner();
+                userAddress = await signer.getAddress();
+
+                document.getElementById('walletInfo').innerHTML = `✅ Connecté: ${userAddress.substring(0, 6)}...${userAddress.substring(38)}`;
+                document.getElementById('walletInfo').classList.remove('hidden');
+                document.getElementById('setupSection').classList.remove('hidden');
+            } catch (error) {
+                alert('Erreur de connexion: ' + error.message);
+            }
+        }
+
+        async function setupContract() {
+            const address = document.getElementById('contractAddress').value;
+            if (!address) {
+                alert('Veuillez entrer une adresse de contrat');
+                return;
+            }
+
+            try {
+                contract = new ethers.Contract(address, CONTRACT_ABI, signer);
+                
+                // Vérifier si le joueur a une partie active
+                const activeGame = await contract.partieActive(userAddress);
+                if (activeGame.toNumber() > 0) {
+                    currentGameId = activeGame.toNumber();
+                    document.getElementById('gameSection').classList.remove('hidden');
+                    await refreshGameInfo();
+                } else {
+                    document.getElementById('gameSetupSection').classList.remove('hidden');
+                }
+            } catch (error) {
+                alert('Erreur de configuration: ' + error.message);
+            }
+        }
+
+        async function createGame() {
+            const name = document.getElementById('playerName').value;
+            const solo = document.getElementById('soloMode').checked;
+
+            if (!name) {
+                alert('Veuillez entrer votre nom');
+                return;
+            }
+
+            try {
+                const tx = await contract.creerPartie(name, solo);
+                await tx.wait();
+
+                // Écouter l'événement de création
+                contract.once("PartieCreee", async (idPartie) => {
+                    currentGameId = idPartie.toNumber();
+                    alert(`Partie créée ! ID: ${currentGameId}`);
+                    document.getElementById('gameSetupSection').classList.add('hidden');
+                    document.getElementById('gameSection').classList.remove('hidden');
+                    await refreshGameInfo();
+                });
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        async function joinGame() {
+            const gameId = document.getElementById('joinGameId').value;
+            const name = document.getElementById('joinPlayerName').value;
+
+            if (!gameId || !name) {
+                alert('Veuillez remplir tous les champs');
+                return;
+            }
+
+            try {
+                const tx = await contract.rejoindrePartie(gameId, name);
+                await tx.wait();
+
+                currentGameId = parseInt(gameId);
+                alert('Partie rejointe !');
+                document.getElementById('gameSetupSection').classList.add('hidden');
+                document.getElementById('gameSection').classList.remove('hidden');
+                await refreshGameInfo();
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        async function startGame() {
+            try {
+                const tx = await contract.demarrerPartie(currentGameId);
+                await tx.wait();
+                alert('Partie démarrée !');
+                await refreshGameInfo();
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        async function rollDice() {
+            try {
+                const tx = await contract.lancerDes(currentGameId, keptDice);
+                await tx.wait();
+                await refreshGameInfo();
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        async function selectScore(category) {
+            try {
+                const tx = await contract.enregistrerScore(currentGameId, category);
+                await tx.wait();
+                keptDice = [false, false, false, false, false];
+                await refreshGameInfo();
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        function toggleDice(index) {
+            keptDice[index] = !keptDice[index];
+            updateDiceDisplay();
+        }
+
+        function updateDiceDisplay() {
+            const container = document.getElementById('diceContainer');
+            const dice = container.querySelectorAll('.dice');
+            dice.forEach((die, index) => {
+                if (keptDice[index]) {
+                    die.classList.add('kept');
+                } else {
+                    die.classList.remove('kept');
+                }
+            });
+        }
+
+        async function refreshGameInfo() {
+            try {
+                const info = await contract.obtenirInfosPartie(currentGameId);
+                const [players, currentPlayerIndex, dice, rollCount, started, finished, winner, solo] = info;
+
+                document.getElementById('currentGameId').textContent = currentGameId;
+                document.getElementById('rollCount').textContent = `${rollCount}/3`;
+
+                // Afficher les joueurs
+                const playersDiv = document.getElementById('playersInfo');
+                playersDiv.innerHTML = '';
+                for (let i = 0; i < players.length; i++) {
+                    const badge = document.createElement('div');
+                    badge.className = 'player-badge' + (i === currentPlayerIndex.toNumber() ? ' current' : '');
+                    const playerInfo = await contract.obtenirScoreJoueur(currentGameId, players[i]);
+                    badge.textContent = `${playerInfo[0]} - ${playerInfo[3]} pts`;
+                    playersDiv.appendChild(badge);
+                }
+
+                // Afficher les dés
+                const diceContainer = document.getElementById('diceContainer');
+                diceContainer.innerHTML = '';
+                for (let i = 0; i < 5; i++) {
+                    const die = document.createElement('div');
+                    die.className = 'dice';
+                    die.textContent = dice[i].toString() || '?';
+                    die.onclick = () => toggleDice(i);
+                    if (keptDice[i]) die.classList.add('kept');
+                    diceContainer.appendChild(die);
+                }
+
+                // Vérifier si c'est notre tour
+                const isMyTurn = players[currentPlayerIndex.toNumber()].toLowerCase() === userAddress.toLowerCase();
+                document.getElementById('rollButton').disabled = !isMyTurn || rollCount >= 3 || finished;
+
+                // Status
+                let statusText = '';
+                if (finished) {
+                    statusText = `🏆 Partie terminée !`;
+                    document.getElementById('resultsSection').classList.remove('hidden');
+                    document.getElementById('gameSection').classList.add('hidden');
+                    const winnerInfo = await contract.obtenirScoreJoueur(currentGameId, winner);
+                    document.getElementById('winnerInfo').textContent = `Gagnant: ${winnerInfo[0]} avec ${winnerInfo[3]} points !`;
+                } else if (isMyTurn) {
+                    statusText = `✅ C'est votre tour ! Lancers restants: ${3 - rollCount}`;
+                } else {
+                    statusText = `⏳ En attente du joueur ${currentPlayerIndex.toNumber() + 1}...`;
+                }
+                document.getElementById('gameStatus').textContent = statusText;
+
+                // Score actuel du joueur
+                const myScore = await contract.obtenirScoreJoueur(currentGameId, userAddress);
+                document.getElementById('totalScore').textContent = myScore[3].toString();
+
+                // Table des scores
+                await updateScoreTable(myScore, rollCount.toNumber(), isMyTurn);
+
+            } catch (error) {
+                console.error('Erreur refresh:', error);
+            }
+        }
+
+        async function updateScoreTable(myScore, rollCount, isMyTurn) {
+            const tbody = document.getElementById('scoreTableBody');
+            tbody.innerHTML = '';
+
+            for (let i = 0; i < 13; i++) {
+                const row = document.createElement('tr');
+                const used = myScore[2][i];
+                
+                if (used) {
+                    row.classList.add('used');
+                } else if (isMyTurn && rollCount > 0) {
+                    row.classList.add('clickable');
+                    row.onclick = () => selectScore(i);
+                }
+
+                const potentialScore = rollCount > 0 && !used ? 
+                    await contract.calculerScorePotentiel(currentGameId, i) : 0;
+
+                row.innerHTML = `
+                    <td>${CATEGORIES[i]}</td>
+                    <td>${!used && rollCount > 0 ? potentialScore.toString() : '-'}</td>
+                    <td>${used ? myScore[1][i].toString() : '-'}</td>
+                    <td>${!used && isMyTurn && rollCount > 0 ? '<button class="btn" style="padding: 5px 10px; font-size: 12px;">Choisir</button>' : ''}</td>
+                `;
+                tbody.appendChild(row);
+            }
+        }
+
+        function resetGame() {
+            currentGameId = 0;
+            keptDice = [false, false, false, false, false];
+            document.getElementById('resultsSection').classList.add('hidden');
+            document.getElementById('gameSetupSection').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
