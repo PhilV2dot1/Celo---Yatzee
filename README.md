@@ -1,5 +1,7 @@
 # Celo---Yatzee
 
+Contrat Celo Sepolia testnet : 0xF2Ea8Df89F8C7155b1A2B001f320f2473E7e2452
+
 
 Fonctionnalités principales :
 Gestion des parties :
