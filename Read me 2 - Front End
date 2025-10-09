@@ -1,0 +1,54 @@
+🎮 Fonctionnalités principales :
+Connexion et configuration :
+
+Connexion MetaMask automatique
+Configuration de l'adresse du contrat
+Détection automatique des parties actives
+
+Création/Gestion de parties :
+
+Créer une partie solo ou multijoueur
+Rejoindre une partie existante par ID
+Démarrer la partie (créateur uniquement)
+Affichage des joueurs avec scores en temps réel
+
+Gameplay :
+
+🎲 Affichage visuel des 5 dés
+Clic sur un dé pour le garder (🔒)
+Bouton "Lancer les Dés" (max 3 fois)
+Compteur de lancers 0/3
+Indication du joueur actuel avec animation
+
+Feuille de score :
+
+Table complète des 13 catégories
+Score potentiel calculé en temps réel
+Scores actuels enregistrés
+Bouton "Choisir" pour valider un score
+Catégories utilisées grisées
+
+Interface :
+
+Design moderne avec dégradés violet/rose
+Cartes statistiques (ID, joueur, lancers, score)
+Animation du joueur actuel
+Messages de statut clairs
+Responsive pour mobile
+
+📝 Comment l'utiliser :
+
+Déployer le contrat sur Celo (Mainnet ou Alfajores)
+Ouvrir l'interface dans un navigateur
+Connecter MetaMask à Celo
+Entrer l'adresse du contrat déployé
+Créer ou rejoindre une partie
+Jouer !
+
+🔧 Points techniques :
+
+Utilise ethers.js v5 pour l'interaction blockchain
+Écoute les événements du contrat
+Actualisation automatique après chaque action
+Gestion d'état locale pour les dés gardés
+Compatible avec MetaMask et autres wallets Web3
